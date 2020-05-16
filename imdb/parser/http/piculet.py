@@ -30,9 +30,10 @@ import logging
 import os
 import re
 import sys
+from time import sleep
 from argparse import ArgumentParser
 from collections import deque
-from functools import partial
+from functools import partial, wraps
 from operator import itemgetter
 from pkgutil import find_loader
 
@@ -49,12 +50,13 @@ if PY2:
     from HTMLParser import HTMLParser
     from StringIO import StringIO
     from htmlentitydefs import name2codepoint
-    from urllib2 import urlopen
+    from urllib2 import urlopen, URLError
 else:
     from html import escape as html_escape
     from html.parser import HTMLParser
     from io import StringIO
     from urllib.request import urlopen
+    from urllib.error import URLError
 
 
 if PY2:
@@ -85,6 +87,49 @@ _CHARSET_TAGS = [
     b'<meta http-equiv="content-type" content="text/html; charset=',
     b'<meta charset="'
 ]
+
+# https://github.com/saltycrane/retry-decorator/blob/master/retry_decorator.py
+
+
+def retry(ExceptionToCheck, tries=4, delay=3, backoff=2, logger=None):
+    """Retry calling the decorated function using an exponential backoff.
+    http://www.saltycrane.com/blog/2009/11/trying-out-retry-decorator-python/
+    original from: http://wiki.python.org/moin/PythonDecoratorLibrary#Retry
+    :param ExceptionToCheck: the exception to check. may be a tuple of
+        exceptions to check
+    :type ExceptionToCheck: Exception or tuple
+    :param tries: number of times to try (not retry) before giving up
+    :type tries: int
+    :param delay: initial delay between retries in seconds
+    :type delay: int
+    :param backoff: backoff multiplier e.g. value of 2 will double the delay
+        each retry
+    :type backoff: int
+    :param logger: logger to use. If None, print
+    :type logger: logging.Logger instance
+    """
+    def deco_retry(f):
+
+        @wraps(f)
+        def f_retry(*args, **kwargs):
+            mtries, mdelay = tries, delay
+            while mtries > 1:
+                try:
+                    return f(*args, **kwargs)
+                except ExceptionToCheck as e:
+                    msg = "%s, Retrying in %d seconds..." % (str(e), mdelay)
+                    if logger:
+                        logger.warning(msg)
+                    else:
+                        print(msg)
+                    sleep(mdelay)
+                    mtries -= 1
+                    mdelay *= backoff
+            return f(*args, **kwargs)
+
+        return f_retry  # true decorator
+
+    return deco_retry
 
 
 def decode_html(content, charset=None, fallback_charset='utf-8'):
@@ -826,6 +871,7 @@ def h2x(source):
     print(html_to_xhtml(content), end='')
 
 
+@retry(URLError, tries=1000, delay=2, backoff=2)
 def scrape_document(address, spec, content_format='xml'):
     """Scrape data from a file path or a URL and print.
 

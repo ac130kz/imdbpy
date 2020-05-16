@@ -80,12 +80,6 @@ scripts = [
 
 data_files = []
 
-featSQLAlchemy = setuptools.dist.Feature(
-    'SQLAlchemy dependency',
-    standard=True,
-    install_requires=['SQLAlchemy']
-)
-
 params = {
     # Meta-information.
     'name': 'IMDbPY',
@@ -106,7 +100,7 @@ params = {
     'download_url': dwnl_url,
     'scripts': scripts,
     'data_files': data_files,
-    'install_requires': ['SQLAlchemy', 'lxml'],
+    'install_requires': ['SQLAlchemy>=1.3', 'lxml'],
     'extras_require': {
         'dev': [
             'flake8',
@@ -123,7 +117,6 @@ params = {
             'pytest-profiling'
         ]
     },
-    'features': {'sqlalchemy': featSQLAlchemy},
     'packages': setuptools.find_packages(),
     'entry_points': """
         [console_scripts]
